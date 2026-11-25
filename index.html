@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DRIVER FINANCE — Gestão Financeira para Motoristas</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              900: '#312e81',
+            },
+            dark: {
+              bg: '#0f172a',
+              card: '#1e293b',
+              border: '#334155',
+              input: '#0f172a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome & Chart.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+
+    /* Estilos da Animação de Abertura do Carro */
+    #splashScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #090d16;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+      overflow: hidden;
+    }
+
+    .road-track {
+      position: relative;
+      width: 280px;
+      height: 60px;
+      border-bottom: 2px dashed #334155;
+      display: flex;
+      align-items: flex-end;
+      overflow: hidden;
+    }
+
+    .car-anim {
+      position: absolute;
+      bottom: 6px;
+      left: -60px;
+      font-size: 2.2rem;
+      color: #6366f1;
+      filter: drop-shadow(0 0 10px #4f46e5);
+      animation: driveCar 2.2s ease-in-out forwards;
+    }
+
+    .car-trail {
+      position: absolute;
+      bottom: 12px;
+      height: 4px;
+      background: linear-gradient(90deg, transparent, #6366f1);
+      border-radius: 999px;
+      animation: trailExpand 2.2s ease-in-out forwards;
+    }
+
+    @keyframes driveCar {
+      0% { left: -60px; transform: scaleX(1); }
+      50% { transform: scaleX(1) translateY(-2px); }
+      80% { left: 120px; }
+      100% { left: 320px; transform: scaleX(1); }
+    }
+
+    @keyframes trailExpand {
+      0% { left: 0; width: 0; opacity: 0; }
+      30% { opacity: 1; }
+      80% { width: 180px; opacity: 0.8; }
+      100% { width: 300px; opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen pb-20">
+
+  <!-- TELA DE ABERTURA COM O CARRO ANDANDO -->
+  <div id="splashScreen">
+    <div class="road-track mb-4">
+      <div class="car-trail"></div>
+      <i class="fa-solid fa-car-side car-anim"></i>
+    </div>
+    <h2 class="text-xl font-extrabold tracking-wider text-white">DRIVER <span class="text-indigo-400">FINANCE</span></h2>
+    <p class="text-xs text-slate-400 mt-1 animate-pulse">Carregando o seu sistema...</p>
+  </div>
+
+  <!-- TELA DE ACESSO AUTORIZADO (BLOQUEIO) -->
+  <div id="authGate" class="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5">
+      <div class="flex items-center space-x-3">
+        <div class="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center text-white text-xl shadow-lg shadow-indigo-500/30">
+          <i class="fa-solid fa-lock"></i>
+        </div>
+        <div>
+          <h2 class="font-extrabold text-base text-white">Acesso <span class="text-indigo-400">Autorizado</span></h2>
+          <p class="text-xs text-slate-400">DRIVER FINANCE</p>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 leading-relaxed">
+        Este painel é restrito a motoristas autorizados. Digite sua chave de acesso para entrar.
+      </p>
+
+      <form id="formAcesso" class="space-y-3">
+        <div>
+          <label for="inputChaveAcesso" class="block text-xs text-slate-400 mb-1">Senha / Código Autorizado</label>
+          <input type="password" id="inputChaveAcesso" required autocomplete="current-password" placeholder="Digite a chave de acesso" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <label class="flex items-center space-x-2 text-xs text-slate-400 cursor-pointer select-none">
+          <input type="checkbox" id="lembrarAcesso" checked class="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-0">
+          <span>Manter desbloqueado neste aparelho</span>
+        </label>
+
+        <p id="erroAcesso" class="text-xs text-rose-400 hidden">Chave incorreta. Apenas pessoas autorizadas podem abrir o site.</p>
+
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl text-sm shadow-lg shadow-indigo-900/30 transition flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-right-to-bracket"></i>
+          <span>Entrar no Sistema</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- CONTEÚDO PRINCIPAL (OCULTO ATÉ AUTORIZAR) -->
+  <div id="appShell" class="hidden">
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-40 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/30">
+          <i class="fa-solid font-bold fa-car"></i>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-lg tracking-tight text-white leading-none">DRIVER <span class="text-indigo-400">FINANCE</span></h1>
+          <p class="text-xs text-slate-400">Gestão para Motoristas</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <div id="userBadge" class="hidden sm:flex items-center space-x-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full text-xs text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="userStatus">Autorizado</span>
+        </div>
+        <button id="openMetaModal" type="button" title="Meta mensal" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-2.5 rounded-xl text-sm transition">
+          <i class="fa-solid fa-bullseye text-indigo-400"></i>
+        </button>
+        <button id="btnBloquearApp" type="button" title="Bloquear tela" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-2.5 rounded-xl text-sm transition">
+          <i class="fa-solid fa-lock text-amber-400"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-4xl mx-auto px-4 py-6 space-y-6">
+
+      <!-- Meta Mensal Progress Bar -->
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div class="flex justify-between items-center mb-2">
+          <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-trophy text-amber-400"></i>
+            <span class="text-sm font-semibold text-slate-300">Meta Mensal de Lucro</span>
+          </div>
+          <span id="metaValores" class="text-xs text-slate-400 font-mono">R$ 0,00 / R$ 0,00</span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
+          <div id="metaProgressBar" class="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <div class="flex justify-between items-center mt-2 text-xs text-slate-400">
+          <span id="metaPercent">0% concluído</span>
+          <button id="btnEditMeta" type="button" class="text-indigo-400 hover:underline">Ajustar meta</button>
+        </div>
+      </section>
+
+      <!-- Resumo dos Cards de Métricas (Dashboard) -->
+      <section class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+          <div class="flex justify-between items-center text-slate-400 text-xs mb-1">
+            <span>Receita Bruta</span>
+            <i class="fa-solid fa-arrow-up-right text-emerald-400"></i>
+          </div>
+          <div id="cardReceita" class="text-lg md:text-xl font-bold text-emerald-400 font-mono">R$ 0,00</div>
+          <span id="cardCorridasCount" class="text-[10px] text-slate-500">0 lançamentos</span>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+          <div class="flex justify-between items-center text-slate-400 text-xs mb-1">
+            <span>Despesas Totais</span>
+            <i class="fa-solid fa-arrow-down-right text-rose-400"></i>
+          </div>
+          <div id="cardDespesa" class="text-lg md:text-xl font-bold text-rose-400 font-mono">R$ 0,00</div>
+          <span id="cardDespesasCount" class="text-[10px] text-slate-500">0 lançamentos</span>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+          <div class="flex justify-between items-center text-slate-400 text-xs mb-1">
+            <span>Lucro Líquido</span>
+            <i class="fa-solid fa-wallet text-indigo-400"></i>
+          </div>
+          <div id="cardLucro" class="text-lg md:text-xl font-bold text-indigo-400 font-mono">R$ 0,00</div>
+          <span id="cardMargemLucro" class="text-[10px] text-slate-500">Margem: 0%</span>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+          <div class="flex justify-between items-center text-slate-400 text-xs mb-1">
+            <span>Rendimento</span>
+            <i class="fa-solid fa-gauge-high text-amber-400"></i>
+          </div>
+          <div id="cardValorHora" class="text-base font-bold text-amber-400 font-mono">R$ 0,00/h</div>
+          <div id="cardValorKm" class="text-xs text-slate-400 font-mono">R$ 0,00/km</div>
+        </div>
+      </section>
+
+      <!-- Botões de Ação Rápida -->
+      <section class="grid grid-cols-2 gap-3">
+        <button id="btnNovaReceita" type="button" class="flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-emerald-900/30 transition">
+          <i class="fa-solid fa-circle-plus"></i>
+          <span>Nova Receita</span>
+        </button>
+        <button id="btnNovaDespesa" type="button" class="flex items-center justify-center space-x-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-rose-900/30 transition">
+          <i class="fa-solid fa-circle-minus"></i>
+          <span>Nova Despesa</span>
+        </button>
+      </section>
+
+      <!-- Calculadora de Consumo Integrada -->
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <h2 class="text-sm font-bold text-slate-200 mb-3 flex items-center space-x-2">
+          <i class="fa-solid fa-calculator text-indigo-400"></i>
+          <span>Calculadora de Consumo e Combustível</span>
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Km Rodados</label>
+            <input type="number" id="calcKm" placeholder="Ex: 150" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Média do Veículo (Km/L)</label>
+            <input type="number" id="calcKml" placeholder="Ex: 10" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Preço do Litro (R$)</label>
+            <input type="number" id="calcPrecoLitro" step="0.01" placeholder="Ex: 5.89" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-between bg-slate-950 border border-slate-800/80 p-3.5 rounded-xl gap-3">
+          <div class="flex space-x-4 text-xs font-mono">
+            <div><span class="text-slate-500">Litros:</span> <span id="resLitros" class="text-indigo-400 font-bold">0.00 L</span></div>
+            <div><span class="text-slate-500">Custo/Km:</span> <span id="resCustoKm" class="text-amber-400 font-bold">R$ 0,00</span></div>
+            <div><span class="text-slate-500">Total:</span> <span id="resCustoTotal" class="text-rose-400 font-bold">R$ 0,00</span></div>
+          </div>
+          <button id="btnLancarCombustivel" type="button" class="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 px-3 py-2 rounded-lg transition flex items-center justify-center space-x-1.5">
+            <i class="fa-solid fa-gas-pump text-rose-400"></i>
+            <span>Lançar como Despesa</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Gráficos Visuais -->
+      <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Receita por Plataforma</h3>
+          <div class="h-48">
+            <canvas id="chartPlataformas"></canvas>
+          </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Despesas por Categoria</h3>
+          <div class="h-48">
+            <canvas id="chartCategorias"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Extrato de Lançamentos -->
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-sm font-bold text-slate-200 flex items-center space-x-2">
+            <i class="fa-solid fa-list-check text-indigo-400"></i>
+            <span>Histórico de Lançamentos</span>
+          </h2>
+          <span id="transacoesCount" class="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-full border border-slate-700">0 itens</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="text-[11px] text-slate-400 uppercase border-b border-slate-800 bg-slate-950/50">
+              <tr>
+                <th class="py-2.5 px-3">Data</th>
+                <th class="py-2.5 px-3">Tipo / Descrição</th>
+                <th class="py-2.5 px-3">Plataforma / Cat.</th>
+                <th class="py-2.5 px-3 text-right">Valor</th>
+                <th class="py-2.5 px-3 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaTransacoes" class="divide-y divide-slate-800/60">
+              <tr>
+                <td colspan="5" class="text-center py-6 text-slate-500">Nenhum lançamento registrado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MODAL: Nova / Editar Transação -->
+    <div id="modalTransacao" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+          <h3 id="modalTransacaoTitulo" class="text-base font-bold text-white">Lançamento</h3>
+          <button id="fecharModalTransacao" type="button" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <form id="formTransacao" class="space-y-3">
+          <input type="hidden" id="transacaoId">
+          <input type="hidden" id="transacaoTipo" value="receita">
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Descrição / Categoria</label>
+            <input type="text" id="transacaoDescricao" required placeholder="Ex: Ganho do Dia Uber / Abastecimento" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Valor (R$)</label>
+              <input type="number" step="0.01" id="transacaoValor" required placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Data</label>
+              <input type="date" id="transacaoData" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+            </div>
+          </div>
+
+          <div id="campoPlataforma">
+            <label class="block text-xs text-slate-400 mb-1">Plataforma</label>
+            <select id="transacaoPlataforma" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+              <option value="Uber">Uber</option>
+              <option value="99">99</option>
+              <option value="InDrive">InDrive</option>
+              <option value="Particular">Particular</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Km Rodados (opcional)</label>
+              <input type="number" id="transacaoKm" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Horas Online (opcional)</label>
+              <input type="number" step="0.1" id="transacaoHoras" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+            </div>
+          </div>
+
+          <div class="pt-2 flex justify-end space-x-2">
+            <button type="button" id="btnCancelarTransacao" class="bg-slate-800 text-slate-300 px-4 py-2 rounded-xl text-xs hover:bg-slate-700">Cancelar</button>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg">Salvar Lançamento</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Ajustar Meta -->
+    <div id="modalMeta" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xs w-full p-5 shadow-2xl space-y-4">
+        <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2">Meta de Lucro Mensal</h3>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Valor da Meta (R$)</label>
+          <input type="number" id="inputValorMeta" placeholder="Ex: 3000.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+        <div class="flex justify-end space-x-2">
+          <button id="fecharModalMeta" type="button" class="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-xl text-xs">Cancelar</button>
+          <button id="salvarMeta" type="button" class="bg-indigo-600 text-white font-semibold px-3 py-1.5 rounded-xl text-xs">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Altere aqui as chaves/códigos autorizados para abrir o site
+    const CHAVES_AUTORIZADAS = ['DRIVER2026', 'Motorista123'];
+    const STORAGE_AUTH_KEY = 'df_autorizado_v1';
+
+    // Lógica da Tela de Abertura (Splash Screen)
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const splash = document.getElementById('splashScreen');
+        splash.style.opacity = '0';
+        splash.style.visibility = 'hidden';
+      }, 2200);
+    });
+
+    function liberarSistema() {
+      document.getElementById('authGate').classList.add('hidden');
+      document.getElementById('appShell').classList.remove('hidden');
+      atualizarDashboard();
+      if (chartPlat) chartPlat.update('none');
+      if (chartCat) chartCat.update('none');
+    }
+
+    function bloquearSistema() {
+      localStorage.removeItem(STORAGE_AUTH_KEY);
+      sessionStorage.removeItem(STORAGE_AUTH_KEY);
+      document.getElementById('appShell').classList.add('hidden');
+      document.getElementById('authGate').classList.remove('hidden');
+      document.getElementById('inputChaveAcesso').value = '';
+      document.getElementById('erroAcesso').classList.add('hidden');
+    }
+
+    document.getElementById('formAcesso').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const digitada = document.getElementById('inputChaveAcesso').value.trim();
+      const lembrar = document.getElementById('lembrarAcesso').checked;
+      const erroEl = document.getElementById('erroAcesso');
+
+      if (CHAVES_AUTORIZADAS.includes(digitada)) {
+        erroEl.classList.add('hidden');
+        if (lembrar) {
+          localStorage.setItem(STORAGE_AUTH_KEY, 'ok');
+        } else {
+          sessionStorage.setItem(STORAGE_AUTH_KEY, 'ok');
+        }
+        liberarSistema();
+      } else {
+        erroEl.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('btnBloquearApp').addEventListener('click', bloquearSistema);
+
+    let state = {
+      metaMensal: parseFloat(localStorage.getItem('df_meta')) || 3000.00,
+      transacoes: JSON.parse(localStorage.getItem('df_transacoes')) || []
+    };
+
+    function salvarEstado() {
+      localStorage.setItem('df_meta', state.metaMensal);
+      localStorage.setItem('df_transacoes', JSON.stringify(state.transacoes));
+      atualizarDashboard();
+    }
+
+    function fmtR(v) {
+      return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    let chartPlat = null;
+    let chartCat = null;
+
+    function initCharts() {
+      const ctxPlat = document.getElementById('chartPlataformas').getContext('2d');
+      chartPlat = new Chart(ctxPlat, {
+        type: 'doughnut',
+        data: {
+          labels: ['Uber', '99', 'InDrive', 'Particular', 'Outros'],
+          datasets: [{
+            data: [0, 0, 0, 0, 0],
+            backgroundColor: ['#f8fafc', '#ff8c00', '#00e676', '#3b82f6', '#64748b'],
+            borderColor: '#0f172a',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 } } } }
+        }
+      });
+
+      const ctxCat = document.getElementById('chartCategorias').getContext('2d');
+      chartCat = new Chart(ctxCat, {
+        type: 'pie',
+        data: {
+          labels: ['Combustível', 'Manutenção', 'Alimentação', 'Outros'],
+          datasets: [{
+            data: [0, 0, 0, 0],
+            backgroundColor: ['#f43f5e', '#f59e0b', '#3b82f6', '#8b5cf6'],
+            borderColor: '#0f172a',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 } } } }
+        }
+      });
+    }
+
+    function atualizarDashboard() {
+      let receitaTotal = 0;
+      let despesaTotal = 0;
+      let totalKm = 0;
+      let totalHoras = 0;
+      let corridasCount = 0;
+
+      const platData = { 'Uber': 0, '99': 0, 'InDrive': 0, 'Particular': 0, 'Outros': 0 };
+      const catData = { 'Combustível': 0, 'Manutenção': 0, 'Alimentação': 0, 'Outros': 0 };
+
+      state.transacoes.forEach((t) => {
+        const val = parseFloat(t.valor) || 0;
+        if (t.tipo === 'receita') {
+          receitaTotal += val;
+          corridasCount++;
+          const p = (t.plataforma || '').trim().toLowerCase();
+          if (p === 'uber') platData['Uber'] += val;
+          else if (p === '99') platData['99'] += val;
+          else if (p === 'indrive') platData['InDrive'] += val;
+          else if (p === 'particular') platData['Particular'] += val;
+          else platData['Outros'] += val;
+        } else {
+          despesaTotal += val;
+          const desc = (t.descricao || '').toLowerCase();
+          if (desc.includes('combustív') || desc.includes('gasolina') || desc.includes('etanol')) {
+            catData['Combustível'] += val;
+          } else if (desc.includes('manuten') || desc.includes('óleo') || desc.includes('pneu')) {
+            catData['Manutenção'] += val;
+          } else if (desc.includes('alimento') || desc.includes('lanche') || desc.includes('almoço')) {
+            catData['Alimentação'] += val;
+          } else {
+            catData['Outros'] += val;
+          }
+        }
+        totalKm += parseFloat(t.km) || 0;
+        totalHoras += parseFloat(t.horas) || 0;
+      });
+
+      const lucroLiquido = receitaTotal - despesaTotal;
+      const margem = receitaTotal > 0 ? ((lucroLiquido / receitaTotal) * 100).toFixed(1) : 0;
+      const valorHora = totalHoras > 0 ? (receitaTotal / totalHoras) : 0;
+      const valorKm = totalKm > 0 ? (receitaTotal / totalKm) : 0;
+
+      document.getElementById('cardReceita').innerText = fmtR(receitaTotal);
+      document.getElementById('cardCorridasCount').innerText = `${corridasCount} lançamentos`;
+
+      document.getElementById('cardDespesa').innerText = fmtR(despesaTotal);
+      document.getElementById('cardDespesasCount').innerText = `${state.transacoes.filter((t) => t.tipo === 'despesa').length} lançamentos`;
+
+      document.getElementById('cardLucro').innerText = fmtR(lucroLiquido);
+      document.getElementById('cardMargemLucro').innerText = `Margem: ${margem}%`;
+
+      document.getElementById('cardValorHora').innerText = `${fmtR(valorHora)}/h`;
+      document.getElementById('cardValorKm').innerText = `${fmtR(valorKm)}/km`;
+
+      const meta = state.metaMensal;
+      const pctMeta = Math.min(100, Math.max(0, ((lucroLiquido / meta) * 100))).toFixed(1);
+      document.getElementById('metaValores').innerText = `${fmtR(lucroLiquido)} / ${fmtR(meta)}`;
+      document.getElementById('metaProgressBar').style.width = `${pctMeta}%`;
+      document.getElementById('metaPercent').innerText = `${pctMeta}% da meta atingida`;
+
+      renderTabela();
+
+      if (chartPlat) {
+        chartPlat.data.labels = ['Uber', '99', 'InDrive', 'Particular', 'Outros'];
+        chartPlat.data.datasets[0].data = [
+          platData['Uber'],
+          platData['99'],
+          platData['InDrive'],
+          platData['Particular'],
+          platData['Outros']
+        ];
+        chartPlat.update('none');
+      }
+      if (chartCat) {
+        chartCat.data.datasets[0].data = Object.values(catData);
+        chartCat.update();
+      }
+    }
+
+    function renderTabela() {
+      const tbody = document.getElementById('tabelaTransacoes');
+      document.getElementById('transacoesCount').innerText = `${state.transacoes.length} itens`;
+
+      if (state.transacoes.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-500">Nenhum lançamento registrado.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = state.transacoes.map((t, idx) => {
+        const isRec = t.tipo === 'receita';
+        const dataFmt = t.data ? t.data.split('-').reverse().join('/') : '-';
+        return `
+          <tr class="hover:bg-slate-800/40 transition">
+            <td class="py-2.5 px-3 font-mono text-slate-400">${dataFmt}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-200">${t.descricao}</td>
+            <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] ${isRec ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'}">${isRec ? t.plataforma || 'Receita' : 'Despesa'}</span></td>
+            <td class="py-2.5 px-3 text-right font-mono font-bold ${isRec ? 'text-emerald-400' : 'text-rose-400'}">${isRec ? '+' : '-'}${fmtR(t.valor)}</td>
+            <td class="py-2.5 px-3 text-center space-x-1">
+              <button onclick="editarTransacao(${idx})" type="button" class="text-slate-400 hover:text-indigo-400 p-1"><i class="fa-solid fa-pen"></i></button>
+              <button onclick="excluirTransacao(${idx})" type="button" class="text-slate-400 hover:text-rose-400 p-1"><i class="fa-solid fa-trash-can"></i></button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function excluirTransacao(idx) {
+      if (confirm('Deseja realmente excluir este lançamento?')) {
+        state.transacoes.splice(idx, 1);
+        salvarEstado();
+      }
+    }
+
+    function editarTransacao(idx) {
+      const t = state.transacoes[idx];
+      document.getElementById('transacaoId').value = idx;
+      document.getElementById('transacaoTipo').value = t.tipo;
+      document.getElementById('transacaoDescricao').value = t.descricao;
+      document.getElementById('transacaoValor').value = t.valor;
+      document.getElementById('transacaoData').value = t.data;
+      document.getElementById('transacaoPlataforma').value = t.plataforma || 'Uber';
+      document.getElementById('transacaoKm').value = t.km || '';
+      document.getElementById('transacaoHoras').value = t.horas || '';
+
+      document.getElementById('campoPlataforma').classList.toggle('hidden', t.tipo !== 'receita');
+      document.getElementById('modalTransacaoTitulo').innerText = 'Editar Lançamento';
+      document.getElementById('modalTransacao').classList.remove('hidden');
+    }
+
+    document.getElementById('btnNovaReceita').addEventListener('click', () => {
+      document.getElementById('formTransacao').reset();
+      document.getElementById('transacaoId').value = '';
+      document.getElementById('transacaoTipo').value = 'receita';
+      document.getElementById('transacaoData').value = new Date().toISOString().split('T')[0];
+      document.getElementById('campoPlataforma').classList.remove('hidden');
+      document.getElementById('modalTransacaoTitulo').innerText = 'Nova Receita';
+      document.getElementById('modalTransacao').classList.remove('hidden');
+    });
+
+    document.getElementById('btnNovaDespesa').addEventListener('click', () => {
+      document.getElementById('formTransacao').reset();
+      document.getElementById('transacaoId').value = '';
+      document.getElementById('transacaoTipo').value = 'despesa';
+      document.getElementById('transacaoData').value = new Date().toISOString().split('T')[0];
+      document.getElementById('campoPlataforma').classList.add('hidden');
+      document.getElementById('modalTransacaoTitulo').innerText = 'Nova Despesa';
+      document.getElementById('modalTransacao').classList.remove('hidden');
+    });
+
+    document.getElementById('fecharModalTransacao').addEventListener('click', () => {
+      document.getElementById('modalTransacao').classList.add('hidden');
+    });
+
+    document.getElementById('btnCancelarTransacao').addEventListener('click', () => {
+      document.getElementById('modalTransacao').classList.add('hidden');
+    });
+
+    document.getElementById('formTransacao').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const id = document.getElementById('transacaoId').value;
+      const novaTransacao = {
+        tipo: document.getElementById('transacaoTipo').value,
+        descricao: document.getElementById('transacaoDescricao').value,
+        valor: parseFloat(document.getElementById('transacaoValor').value) || 0,
+        data: document.getElementById('transacaoData').value,
+        plataforma: document.getElementById('transacaoPlataforma').value,
+        km: parseFloat(document.getElementById('transacaoKm').value) || 0,
+        horas: parseFloat(document.getElementById('transacaoHoras').value) || 0
+      };
+
+      if (id !== '') {
+        state.transacoes[parseInt(id, 10)] = novaTransacao;
+      } else {
+        state.transacoes.unshift(novaTransacao);
+      }
+
+      salvarEstado();
+      document.getElementById('modalTransacao').classList.add('hidden');
+    });
+
+    function calcularCombustivel() {
+      const km = parseFloat(document.getElementById('calcKm').value) || 0;
+      const kml = parseFloat(document.getElementById('calcKml').value) || 0;
+      const preco = parseFloat(document.getElementById('calcPrecoLitro').value) || 0;
+
+      if (km > 0 && kml > 0 && preco > 0) {
+        const litros = km / kml;
+        const total = litros * preco;
+        const custoKm = total / km;
+
+        document.getElementById('resLitros').innerText = `${litros.toFixed(2)} L`;
+        document.getElementById('resCustoKm').innerText = fmtR(custoKm);
+        document.getElementById('resCustoTotal').innerText = fmtR(total);
+      }
+    }
+
+    ['calcKm', 'calcKml', 'calcPrecoLitro'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', calcularCombustivel);
+    });
+
+    document.getElementById('btnLancarCombustivel').addEventListener('click', () => {
+      const km = parseFloat(document.getElementById('calcKm').value) || 0;
+      const kml = parseFloat(document.getElementById('calcKml').value) || 0;
+      const preco = parseFloat(document.getElementById('calcPrecoLitro').value) || 0;
+
+      if (km <= 0 || kml <= 0 || preco <= 0) {
+        alert('Por favor, preencha os valores da calculadora primeiro.');
+        return;
+      }
+
+      const total = (km / kml) * preco;
+      state.transacoes.unshift({
+        tipo: 'despesa',
+        descricao: `Combustível (${km} km @ ${kml} km/L)`,
+        valor: total,
+        data: new Date().toISOString().split('T')[0],
+        km: km
+      });
+
+      salvarEstado();
+      alert('Despesa de combustível lançada com sucesso!');
+    });
+
+    document.getElementById('openMetaModal').addEventListener('click', () => {
+      document.getElementById('inputValorMeta').value = state.metaMensal;
+      document.getElementById('modalMeta').classList.remove('hidden');
+    });
+    document.getElementById('btnEditMeta').addEventListener('click', () => {
+      document.getElementById('inputValorMeta').value = state.metaMensal;
+      document.getElementById('modalMeta').classList.remove('hidden');
+    });
+    document.getElementById('fecharModalMeta').addEventListener('click', () => {
+      document.getElementById('modalMeta').classList.add('hidden');
+    });
+    document.getElementById('salvarMeta').addEventListener('click', () => {
+      const v = parseFloat(document.getElementById('inputValorMeta').value);
+      if (v > 0) {
+        state.metaMensal = v;
+        salvarEstado();
+        document.getElementById('modalMeta').classList.add('hidden');
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initCharts();
+      const jaAutorizado = localStorage.getItem(STORAGE_AUTH_KEY) === 'ok' || sessionStorage.getItem(STORAGE_AUTH_KEY) === 'ok';
+      if (jaAutorizado) {
+        liberarSistema();
+      }
+    });
+  </script>
+</body>
+</html>
