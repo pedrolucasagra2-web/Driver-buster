@@ -487,6 +487,8 @@
         const { data: acesso, error } = await sbClient
           .from('acessos_motoristas')
           .select('status')
+          .eq('email', user.email.trim().toLowerCase())
+          .limit(1)
           .maybeSingle();
 
         if (error) throw error;
