@@ -494,6 +494,7 @@
         if (error) throw error;
 
         if (acesso && acesso.status === 'ativo') {
+          await carregarEstadoNuvem(user);
           document.getElementById('btnVerificarAcesso').classList.add('hidden');
           document.getElementById('btnSairConta').classList.add('hidden');
           liberarSistema(user);
@@ -555,6 +556,8 @@
     document.getElementById('btnVerificarAcesso').addEventListener('click', () => verificarAcessoMotorista());
     document.getElementById('btnSairConta').addEventListener('click', async () => {
       await sbClient.auth.signOut();
+      usuarioAtual = null;
+      state = { metaMensal: 3000.00, transacoes: [] };
       document.getElementById('btnVerificarAcesso').classList.add('hidden');
       document.getElementById('btnSairConta').classList.add('hidden');
       document.getElementById('appShell').classList.add('hidden');
@@ -563,6 +566,8 @@
     });
     document.getElementById('btnBloquearApp').addEventListener('click', async () => {
       await sbClient.auth.signOut();
+      usuarioAtual = null;
+      state = { metaMensal: 3000.00, transacoes: [] };
       document.getElementById('appShell').classList.add('hidden');
       document.getElementById('authGate').classList.remove('hidden');
       document.getElementById('btnVerificarAcesso').classList.add('hidden');
@@ -570,15 +575,77 @@
       mostrarMensagemAcesso('Você saiu da sua conta.');
     });
 
+    // Estado financeiro isolado por usuário e armazenado no Supabase.
+    let usuarioAtual = null;
     let state = {
-      metaMensal: parseFloat(localStorage.getItem('df_meta')) || 3000.00,
-      transacoes: JSON.parse(localStorage.getItem('df_transacoes')) || []
+      metaMensal: 3000.00,
+      transacoes: []
     };
 
-    function salvarEstado() {
-      localStorage.setItem('df_meta', state.metaMensal);
-      localStorage.setItem('df_transacoes', JSON.stringify(state.transacoes));
+    async function carregarEstadoNuvem(user) {
+      usuarioAtual = user;
+      const { data, error } = await sbClient
+        .from('motorista_dados')
+        .select('dados')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data && data.dados) {
+        state.metaMensal = Number(data.dados.metaMensal) > 0 ? Number(data.dados.metaMensal) : 3000.00;
+        state.transacoes = Array.isArray(data.dados.transacoes) ? data.dados.transacoes : [];
+        return;
+      }
+
+      // Migração única dos dados antigos deste navegador para a primeira conta que entrar.
+      // Após salvar, as cópias locais são apagadas para evitar mistura entre contas.
+      let metaAntiga = null;
+      let transacoesAntigas = null;
+      try {
+        metaAntiga = localStorage.getItem('df_meta');
+        transacoesAntigas = localStorage.getItem('df_transacoes');
+        if (metaAntiga !== null && Number(metaAntiga) > 0) state.metaMensal = Number(metaAntiga);
+        if (transacoesAntigas) {
+          const parsed = JSON.parse(transacoesAntigas);
+          if (Array.isArray(parsed)) state.transacoes = parsed;
+        }
+      } catch (migrationError) {
+        console.warn('Não foi possível ler os dados locais antigos:', migrationError);
+      }
+
+      const { error: saveError } = await sbClient
+        .from('motorista_dados')
+        .upsert({
+          id: user.id,
+          dados: { metaMensal: state.metaMensal, transacoes: state.transacoes },
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+      if (saveError) throw saveError;
+      localStorage.removeItem('df_meta');
+      localStorage.removeItem('df_transacoes');
+    }
+
+    async function salvarEstado() {
       atualizarDashboard();
+      if (!usuarioAtual) {
+        console.warn('Nenhum usuário autenticado; alterações não foram enviadas ao Supabase.');
+        return;
+      }
+
+      const { error } = await sbClient
+        .from('motorista_dados')
+        .upsert({
+          id: usuarioAtual.id,
+          dados: { metaMensal: state.metaMensal, transacoes: state.transacoes },
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+      if (error) {
+        console.error('Erro ao salvar dados financeiros:', error);
+        alert('Não foi possível salvar seus dados na nuvem. Confira sua conexão e tente novamente.');
+      }
     }
 
     function fmtR(v) {
