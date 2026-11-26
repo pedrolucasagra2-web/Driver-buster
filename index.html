@@ -34,6 +34,9 @@
     }
   </script>
 
+  <!-- Supabase Auth -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
   <!-- FontAwesome & Chart.js -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -112,7 +115,7 @@
     <p class="text-xs text-slate-400 mt-1 animate-pulse">Carregando o seu sistema...</p>
   </div>
 
-  <!-- TELA DE ACESSO AUTORIZADO (BLOQUEIO) -->
+  <!-- TELA DE LOGIN E VERIFICAÇÃO DE COMPRA -->
   <div id="authGate" class="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5">
       <div class="flex items-center space-x-3">
@@ -120,33 +123,40 @@
           <i class="fa-solid fa-lock"></i>
         </div>
         <div>
-          <h2 class="font-extrabold text-base text-white">Acesso <span class="text-indigo-400">Autorizado</span></h2>
-          <p class="text-xs text-slate-400">DRIVER FINANCE</p>
+          <h2 class="font-extrabold text-base text-white">Entrar no <span class="text-indigo-400">Driver Finance</span></h2>
+          <p class="text-xs text-slate-400">Acesso exclusivo para compradores</p>
         </div>
       </div>
 
       <p class="text-xs text-slate-400 leading-relaxed">
-        Este painel é restrito a motoristas autorizados. Digite sua chave de acesso para entrar.
+        Entre com o e-mail usado na compra e sua senha. O acesso será validado automaticamente.
       </p>
 
       <form id="formAcesso" class="space-y-3">
         <div>
-          <label for="inputChaveAcesso" class="block text-xs text-slate-400 mb-1">Senha / Código Autorizado</label>
-          <input type="password" id="inputChaveAcesso" required autocomplete="current-password" placeholder="Digite a chave de acesso" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          <label for="inputEmailAcesso" class="block text-xs text-slate-400 mb-1">E-mail</label>
+          <input type="email" id="inputEmailAcesso" required autocomplete="email" placeholder="seu@email.com" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
         </div>
-
-        <label class="flex items-center space-x-2 text-xs text-slate-400 cursor-pointer select-none">
-          <input type="checkbox" id="lembrarAcesso" checked class="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-0">
-          <span>Manter desbloqueado neste aparelho</span>
-        </label>
-
-        <p id="erroAcesso" class="text-xs text-rose-400 hidden">Chave incorreta. Apenas pessoas autorizadas podem abrir o site.</p>
-
-        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl text-sm shadow-lg shadow-indigo-900/30 transition flex items-center justify-center space-x-2">
-          <i class="fa-solid fa-right-to-bracket"></i>
-          <span>Entrar no Sistema</span>
+        <div>
+          <label for="inputSenhaAcesso" class="block text-xs text-slate-400 mb-1">Senha</label>
+          <input type="password" id="inputSenhaAcesso" required minlength="6" autocomplete="current-password" placeholder="Sua senha" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+        <p id="erroAcesso" class="text-xs text-rose-400 hidden" role="alert"></p>
+        <p id="statusAcesso" class="text-xs text-slate-400" aria-live="polite"></p>
+        <button type="submit" id="btnEntrar" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl text-sm shadow-lg shadow-indigo-900/30 transition flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-right-to-bracket"></i><span>Entrar no Sistema</span>
         </button>
       </form>
+
+      <button id="btnCriarConta" type="button" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-3 rounded-xl text-sm border border-slate-700">
+        Criar minha conta
+      </button>
+      <button id="btnVerificarAcesso" type="button" class="hidden w-full text-indigo-400 text-xs hover:underline">
+        Já comprei — verificar meu acesso novamente
+      </button>
+      <button id="btnSairConta" type="button" class="hidden w-full text-slate-400 text-xs hover:underline">
+        Sair desta conta
+      </button>
     </div>
   </div>
 
@@ -409,9 +419,10 @@
   </div>
 
   <script>
-    // Altere aqui as chaves/códigos autorizados para abrir o site
-    const CHAVES_AUTORIZADAS = ['DRIVER2026', 'Motorista123'];
-    const STORAGE_AUTH_KEY = 'df_autorizado_v1';
+    // Supabase: somente a chave pública (anon/publishable) pode ficar no navegador.
+    const SUPABASE_URL = 'https://bqczdgfosmzqdoigyoee.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_DdnSQhZ2RIF3pmzXajXmhA_z85LCk4A';
+    const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // Lógica da Tela de Abertura (Splash Screen)
     window.addEventListener('load', () => {
@@ -422,43 +433,140 @@
       }, 2200);
     });
 
-    function liberarSistema() {
+    function mostrarMensagemAcesso(mensagem, erro = false) {
+      const erroEl = document.getElementById('erroAcesso');
+      const statusEl = document.getElementById('statusAcesso');
+      erroEl.textContent = '';
+      erroEl.classList.add('hidden');
+      statusEl.textContent = '';
+      if (erro) {
+        erroEl.textContent = mensagem;
+        erroEl.classList.remove('hidden');
+      } else {
+        statusEl.textContent = mensagem;
+      }
+    }
+
+    function mostrarTelaAcesso(mensagem = '') {
+      document.getElementById('appShell').classList.add('hidden');
+      document.getElementById('authGate').classList.remove('hidden');
+      document.getElementById('btnVerificarAcesso').classList.remove('hidden');
+      document.getElementById('btnSairConta').classList.remove('hidden');
+      if (mensagem) mostrarMensagemAcesso(mensagem, true);
+    }
+
+    function liberarSistema(user) {
       document.getElementById('authGate').classList.add('hidden');
       document.getElementById('appShell').classList.remove('hidden');
+      document.getElementById('userStatus').textContent = user && user.email ? user.email : 'Autorizado';
+      document.getElementById('userBadge').classList.remove('hidden');
+      if (!chartPlat || !chartCat) initCharts();
       atualizarDashboard();
       if (chartPlat) chartPlat.update('none');
       if (chartCat) chartCat.update('none');
     }
 
-    function bloquearSistema() {
-      localStorage.removeItem(STORAGE_AUTH_KEY);
-      sessionStorage.removeItem(STORAGE_AUTH_KEY);
-      document.getElementById('appShell').classList.add('hidden');
-      document.getElementById('authGate').classList.remove('hidden');
-      document.getElementById('inputChaveAcesso').value = '';
-      document.getElementById('erroAcesso').classList.add('hidden');
+    async function verificarAcessoMotorista(userInformado = null) {
+      try {
+        let user = userInformado;
+        if (!user) {
+          const { data, error } = await sbClient.auth.getUser();
+          if (error) throw error;
+          user = data.user;
+        }
+
+        if (!user || !user.email) {
+          mostrarTelaAcesso('Entre com seu e-mail e senha para continuar.');
+          document.getElementById('btnVerificarAcesso').classList.add('hidden');
+          document.getElementById('btnSairConta').classList.add('hidden');
+          return false;
+        }
+
+        mostrarMensagemAcesso('Verificando sua compra...');
+        // A política RLS retorna somente o registro do e-mail autenticado.
+        const { data: acesso, error } = await sbClient
+          .from('acessos_motoristas')
+          .select('status')
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (acesso && acesso.status === 'ativo') {
+          document.getElementById('btnVerificarAcesso').classList.add('hidden');
+          document.getElementById('btnSairConta').classList.add('hidden');
+          liberarSistema(user);
+          return true;
+        }
+
+        mostrarTelaAcesso('Conta autenticada, mas não encontramos uma compra ativa para este e-mail. Use o mesmo e-mail da Kiwify. Se acabou de comprar, tente verificar novamente em alguns instantes.');
+        return false;
+      } catch (error) {
+        console.error('Falha ao verificar acesso:', error);
+        mostrarTelaAcesso('Não foi possível validar seu acesso agora. Confira sua conexão e tente novamente.');
+        return false;
+      }
     }
 
-    document.getElementById('formAcesso').addEventListener('submit', (e) => {
+    document.getElementById('formAcesso').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const digitada = document.getElementById('inputChaveAcesso').value.trim();
-      const lembrar = document.getElementById('lembrarAcesso').checked;
-      const erroEl = document.getElementById('erroAcesso');
-
-      if (CHAVES_AUTORIZADAS.includes(digitada)) {
-        erroEl.classList.add('hidden');
-        if (lembrar) {
-          localStorage.setItem(STORAGE_AUTH_KEY, 'ok');
-        } else {
-          sessionStorage.setItem(STORAGE_AUTH_KEY, 'ok');
-        }
-        liberarSistema();
-      } else {
-        erroEl.classList.remove('hidden');
+      const email = document.getElementById('inputEmailAcesso').value.trim().toLowerCase();
+      const password = document.getElementById('inputSenhaAcesso').value;
+      const btn = document.getElementById('btnEntrar');
+      btn.disabled = true;
+      mostrarMensagemAcesso('Entrando...');
+      try {
+        const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        await verificarAcessoMotorista(data.user);
+      } catch (error) {
+        mostrarMensagemAcesso(error.message || 'Não foi possível entrar. Confira seu e-mail e senha.', true);
+      } finally {
+        btn.disabled = false;
       }
     });
 
-    document.getElementById('btnBloquearApp').addEventListener('click', bloquearSistema);
+    document.getElementById('btnCriarConta').addEventListener('click', async () => {
+      const email = document.getElementById('inputEmailAcesso').value.trim().toLowerCase();
+      const password = document.getElementById('inputSenhaAcesso').value;
+      if (!email || !password || password.length < 6) {
+        mostrarMensagemAcesso('Informe seu e-mail e uma senha com pelo menos 6 caracteres para criar a conta.', true);
+        return;
+      }
+      const btn = document.getElementById('btnCriarConta');
+      btn.disabled = true;
+      mostrarMensagemAcesso('Criando sua conta...');
+      try {
+        const { data, error } = await sbClient.auth.signUp({ email, password });
+        if (error) throw error;
+        if (data.session && data.user) {
+          await verificarAcessoMotorista(data.user);
+        } else {
+          mostrarMensagemAcesso('Conta criada. Confira seu e-mail para confirmar o cadastro e depois entre por aqui. O acesso ao aplicativo só será liberado se houver uma compra ativa.');
+        }
+      } catch (error) {
+        mostrarMensagemAcesso(error.message || 'Não foi possível criar a conta.', true);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btnVerificarAcesso').addEventListener('click', () => verificarAcessoMotorista());
+    document.getElementById('btnSairConta').addEventListener('click', async () => {
+      await sbClient.auth.signOut();
+      document.getElementById('btnVerificarAcesso').classList.add('hidden');
+      document.getElementById('btnSairConta').classList.add('hidden');
+      document.getElementById('appShell').classList.add('hidden');
+      document.getElementById('authGate').classList.remove('hidden');
+      mostrarMensagemAcesso('Você saiu da sua conta.');
+    });
+    document.getElementById('btnBloquearApp').addEventListener('click', async () => {
+      await sbClient.auth.signOut();
+      document.getElementById('appShell').classList.add('hidden');
+      document.getElementById('authGate').classList.remove('hidden');
+      document.getElementById('btnVerificarAcesso').classList.add('hidden');
+      document.getElementById('btnSairConta').classList.add('hidden');
+      mostrarMensagemAcesso('Você saiu da sua conta.');
+    });
 
     let state = {
       metaMensal: parseFloat(localStorage.getItem('df_meta')) || 3000.00,
@@ -762,11 +870,19 @@
       }
     });
 
-    window.addEventListener('DOMContentLoaded', () => {
-      initCharts();
-      const jaAutorizado = localStorage.getItem(STORAGE_AUTH_KEY) === 'ok' || sessionStorage.getItem(STORAGE_AUTH_KEY) === 'ok';
-      if (jaAutorizado) {
-        liberarSistema();
+    window.addEventListener('DOMContentLoaded', async () => {
+      const { data, error } = await sbClient.auth.getSession();
+      if (error) {
+        console.error('Erro ao recuperar sessão:', error);
+        mostrarTelaAcesso('Não foi possível recuperar sua sessão. Entre novamente.');
+        return;
+      }
+      if (data.session && data.session.user) {
+        await verificarAcessoMotorista(data.session.user);
+      } else {
+        mostrarTelaAcesso('Entre com o e-mail usado na compra e sua senha.');
+        document.getElementById('btnVerificarAcesso').classList.add('hidden');
+        document.getElementById('btnSairConta').classList.add('hidden');
       }
     });
   </script>
